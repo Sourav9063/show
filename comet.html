@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thunder and Plasma Canvas</title>
+    <!-- Tailwind CSS CDN for basic styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            font-family: "Inter", sans-serif;
+            background-color: #0a0a0a; /* Dark background for better effect */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        canvas {
+            display: block;
+            background-color: #000; /* Black background for the canvas */
+            border-radius: 1rem; /* Rounded corners for the canvas */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); /* Subtle shadow */
+            touch-action: none; /* Prevent default touch actions like scrolling/zooming */
+        }
+    </style>
+</head>
+<body>
+    <canvas id="thunderPlasmaCanvas"></canvas>
+
+    <script>
+        // Get the canvas element and its 2D rendering context
+        const canvas = document.getElementById('thunderPlasmaCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas dimensions to fill the window
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        // Array to store active thunderbolts
+        const thunderbolts = [];
+        // Array to store active plasma particles
+        const plasmaParticles = [];
+
+        // Mouse position for plasma generation
+        const mouse = { x: 0, y: 0, isMoving: false };
+        let mouseMoveTimer;
+
+        /**
+         * Resizes the canvas to fill the window.
+         */
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        // Initial resize
+        resizeCanvas();
+
+        // Event listener for window resize
+        window.addEventListener('resize', resizeCanvas);
+
+        /**
+         * Represents a single lightning bolt.
+         * @param {number} startX - The starting X coordinate.
+         * @param {number} startY - The starting Y coordinate.
+         * @param {number} endX - The ending X coordinate.
+         * @param {number} endY - The ending Y coordinate.
+         */
+        class Thunderbolt {
+            constructor(startX, startY, endX, endY) {
+                this.startX = startX;
+                this.startY = startY;
+                this.endX = endX;
+                this.endY = endY;
+                this.segments = []; // Stores the points of the lightning path
+                this.alpha = 1; // Initial opacity
+                this.decayRate = 0.03; // How fast the lightning fades
+                this.flashIntensity = 0; // For flashing effect
+                this.flashSpeed = 0.1; // How fast the flash changes
+                this.generatePath(startX, startY, endX, endY, 5); // Generate the initial path
+            }
+
+            /**
+             * Recursively generates the path of the lightning bolt.
+             * @param {number} x1 - Start X.
+             * @param {number} y1 - Start Y.
+             * @param {number} x2 - End X.
+             * @param {number} y2 - End Y.
+             * @param {number} displacement - Max displacement for a segment.
+             */
+            generatePath(x1, y1, x2, y2, displacement) {
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+
+                if (displacement < 0.5) { // Base case for recursion
+                    this.segments.push({ x: x1, y: y1 });
+                    return;
+                }
+
+                // Calculate perpendicular offset
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const perpAngle = angle + Math.PI / 2;
+                const offset = (Math.random() * 2 - 1) * displacement; // Random offset
+
+                const newMidX = midX + Math.cos(perpAngle) * offset;
+                const newMidY = midY + Math.sin(perpAngle) * offset;
+
+                // Recursively generate segments
+                this.generatePath(x1, y1, newMidX, newMidY, displacement * 0.5);
+                this.generatePath(newMidX, newMidY, x2, y2, displacement * 0.5);
+            }
+
+            /**
+             * Updates the lightning bolt's state (fading, flashing).
+             */
+            update() {
+                this.alpha -= this.decayRate;
+                this.flashIntensity = Math.sin(Date.now() * this.flashSpeed) * 0.5 + 0.5; // Oscillate between 0.5 and 1
+
+                if (this.alpha <= 0) {
+                    return false; // Indicate that the thunderbolt is dead
+                }
+                return true; // Indicate that the thunderbolt is still alive
+            }
+
+            /**
+             * Draws the lightning bolt on the canvas.
+             */
+            draw() {
+                if (this.segments.length < 2) return;
+
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+
+                // Draw main lightning path
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.lineTo(this.endX, this.endY); // Ensure it reaches the end point
+
+                // Randomly pick a color from violet, purple, deep blue
+                const colors = [
+                    [148, 0, 211], // Violet
+                    [128, 0, 128], // Purple
+                    [0, 0, 139]    // Deep Blue
+                ];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const currentAlpha = this.alpha * this.flashIntensity;
+
+                ctx.strokeStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${currentAlpha})`;
+                ctx.lineWidth = 2 + Math.random() * 2; // Slightly varied width
+                ctx.stroke();
+
+                // Add a glow effect
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${currentAlpha * 0.8})`;
+            }
+        }
+
+        /**
+         * Represents a single plasma particle, now with a comet-like tail and no head.
+         * @param {number} x - Initial X coordinate.
+         * @param {number} y - Initial Y coordinate.
+         */
+        class PlasmaParticle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.alpha = 1; // Initial opacity for the entire particle
+                this.decayRate = Math.random() * 0.015 + 0.003; // Slower decay for longer tails
+
+                // Random velocity in all directions
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 2 + 1; // Slightly faster speed for comet effect
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+
+                // Store r, g, b components directly for gradient use
+                const colorType = Math.random();
+                if (colorType < 0.5) { // Violet to blue
+                    this.r = Math.floor(Math.random() * 200); // 0-199
+                    this.g = Math.floor(Math.random() * 50);  // 0-49 (keeps green very low)
+                    this.b = Math.floor(Math.random() * 100) + 155; // 155-255 (ensures strong blue/violet)
+                } else { // Pink to red
+                    this.r = 255;
+                    this.g = Math.floor(Math.random() * 50);  // 0-49 (keeps green very low)
+                    this.b = Math.floor(Math.random() * 100); // 0-99 (keeps blue low to stay in red/pink range)
+                }
+                this.tailLength = Math.random() * 20 + 10; // Increased tail length for better visibility
+            }
+
+            /**
+             * Updates the plasma particle's position and opacity.
+             */
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decayRate;
+
+                if (this.alpha <= 0) {
+                    return false; // Indicate that the particle is dead
+                }
+                return true; // Indicate that the particle is still alive
+            }
+
+            /**
+             * Draws the plasma particle as a comet-like tail with gradual opacity.
+             */
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+
+                // Calculate the tail end point, extending backwards from velocity
+                const tailX = this.x - this.vx * this.tailLength;
+                const tailY = this.y - this.vy * this.tailLength;
+                ctx.lineTo(tailX, tailY);
+
+                // Create a linear gradient along the tail for gradual opacity
+                const gradient = ctx.createLinearGradient(this.x, this.y, tailX, tailY);
+                // Color at the current position (start of the visible tail)
+                gradient.addColorStop(0, `rgba(${this.r}, ${this.g}, ${this.b}, ${this.alpha})`);
+                // Color at the end of the tail (fades to transparent)
+                gradient.addColorStop(1, `rgba(${this.r}, ${this.g}, ${this.b}, 0)`);
+
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 1; // 1 pixel width for the tail
+                ctx.globalAlpha = 1; // Reset globalAlpha to ensure gradient's alpha is used
+
+                ctx.stroke();
+            }
+        }
+
+        /**
+         * Handles mouse click events to create a thunderbolt.
+         * @param {MouseEvent} event - The mouse event object.
+         */
+        canvas.addEventListener('click', (event) => {
+            const clickX = event.clientX;
+            const clickY = event.clientY;
+            const endY = height; // Thunder strikes the bottom of the canvas
+            const endX = clickX + (Math.random() * 100 - 50); // Slightly random end X position
+
+            // Create a new thunderbolt and add it to the array
+            thunderbolts.push(new Thunderbolt(clickX, clickY, endX, endY));
+        });
+
+        /**
+         * Handles mouse move events to update mouse position for plasma.
+         * @param {MouseEvent} event - The mouse event object.
+         */
+        canvas.addEventListener('mousemove', (event) => {
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+            mouse.isMoving = true;
+
+            // Clear previous timer to ensure plasma generation stops shortly after mouse stops
+            clearTimeout(mouseMoveTimer);
+            mouseMoveTimer = setTimeout(() => {
+                mouse.isMoving = false;
+            }, 50); // Stop plasma generation 50ms after mouse stops moving
+        });
+
+        /**
+         * Main animation loop.
+         */
+        function animate() {
+            // Clear the canvas for the next frame, but retain previous effects for glow
+            ctx.clearRect(0, 0, width, height);
+            ctx.shadowBlur = 0; // Reset shadow blur for general drawing
+
+            // Update and draw thunderbolts
+            for (let i = thunderbolts.length - 1; i >= 0; i--) {
+                const thunderbolt = thunderbolts[i];
+                if (thunderbolt.update()) {
+                    thunderbolt.draw();
+                } else {
+                    thunderbolts.splice(i, 1); // Remove dead thunderbolts
+                }
+            }
+
+            // Generate new plasma particles if mouse is moving
+            if (mouse.isMoving) {
+                // Generate more particles per frame for a denser comet-like effect
+                for (let i = 0; i < 10; i++) {
+                    plasmaParticles.push(new PlasmaParticle(mouse.x, mouse.y));
+                }
+            }
+
+            // Update and draw plasma particles
+            for (let i = plasmaParticles.length - 1; i >= 0; i--) {
+                const particle = plasmaParticles[i];
+                if (particle.update()) {
+                    particle.draw();
+                } else {
+                    plasmaParticles.splice(i, 1); // Remove dead particles
+                }
+            }
+
+            // Reset global alpha after drawing particles
+            ctx.globalAlpha = 1;
+
+            // Request the next animation frame
+            requestAnimationFrame(animate);
+        }
+
+        // Start the animation loop when the window loads
+        window.onload = function() {
+            animate();
+        };
+    </script>
+</body>
+</html>
