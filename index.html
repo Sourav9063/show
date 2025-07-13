@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Lightning Canvas</title>
+    <style>
+        /* Basic CSS reset and body styling */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            background-color: #030014; /* A very dark deep blue for the night sky */
+        }
+        /* Style for the canvas to make it fill the screen */
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        /* Style for a subtle instruction text */
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            pointer-events: none; /* Make sure text doesn't interfere with clicks */
+            text-shadow: 0 0 5px rgba(138, 43, 226, 0.5);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="instructions">Click anywhere to summon lightning</div>
+    <canvas id="lightningCanvas"></canvas>
+
+    <script>
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('lightningCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas to full screen dimensions
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        // Resize canvas on window resize and initial load
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = resizeCanvas;
+
+        // --- Lightning Logic ---
+
+        /**
+         * Creates a single segment of a lightning bolt.
+         * @param {number} x - The starting x-coordinate.
+         * @param {number} y - The starting y-coordinate.
+         * @param {number} length - The length of the segment.
+         * @param {number} angle - The angle of the segment.
+         */
+        function createSegment(x, y, length, angle) {
+            return {
+                x: x,
+                y: y,
+                length: length,
+                angle: angle
+            };
+        }
+
+        /**
+         * Draws the lightning bolt on the canvas with a glowing effect.
+         * @param {number} startX - The starting x-coordinate of the bolt.
+         * @param {number} startY - The starting y-coordinate of the bolt.
+         */
+        function createLightning(startX, startY) {
+            const bolts = [];
+            // Changed to a lighter lavender for a whiter appearance
+            const lightningColor = 'rgba(220, 200, 255, 0.9)'; 
+            const glowColor = 'rgba(138, 43, 226, 0.4)';   // Deep Purple glow
+            
+            let currentX = startX;
+            let currentY = startY;
+            let totalLength = 0;
+
+            // Generate the main path of the lightning bolt
+            while (currentY < canvas.height) {
+                // Shorter segments for more zig-zag
+                const segmentLength = Math.random() * 15 + 8;
+                // Increased angle randomness for more zig-zag
+                const segmentAngle = (Math.PI / 2) + (Math.random() - 0.5) * 1.2;
+
+                const segment = createSegment(currentX, currentY, segmentLength, segmentAngle);
+                bolts.push(segment);
+                
+                // Update current position for the next segment
+                currentX += Math.cos(segment.angle) * segment.length;
+                currentY += Math.sin(segment.angle) * segment.length;
+                totalLength += segment.length;
+
+                // Create random branches off the main bolt - increased probability
+                if (Math.random() > 0.9) {
+                    createBranch(bolts, segment.x, segment.y, totalLength * 0.3);
+                }
+            }
+            
+            drawBolt(bolts, glowColor, lightningColor);
+        }
+        
+        /**
+         * Creates a smaller branch off the main lightning bolt.
+         * @param {Array} boltsArray - The array to add branch segments to.
+         * @param {number} startX - The starting x of the branch.
+         * @param {number} startY - The starting y of the branch.
+         * @param {number} maxBranchLength - The maximum length of the branch.
+         */
+        function createBranch(boltsArray, startX, startY, maxBranchLength) {
+            let branchX = startX;
+            let branchY = startY;
+            let branchLength = 0;
+            
+            while(branchLength < maxBranchLength && branchY < canvas.height) {
+                 const segmentLength = Math.random() * 10 + 5;
+                 // Increased angle randomness for more chaotic branches
+                 const segmentAngle = (Math.PI / 2) + (Math.random() - 0.5) * 2.0;
+
+                 const segment = createSegment(branchX, branchY, segmentLength, segmentAngle);
+                 boltsArray.push(segment);
+
+                 branchX += Math.cos(segment.angle) * segment.length;
+                 branchY += Math.sin(segment.angle) * segment.length;
+                 branchLength += segment.length;
+            }
+        }
+
+
+        /**
+         * Renders the generated bolt segments to the canvas.
+         * @param {Array} bolts - Array of bolt segments.
+         * @param {string} glowColor - The color for the outer glow.
+         * @param {string} coreColor - The color for the inner core of the bolt.
+         */
+        function drawBolt(bolts, glowColor, coreColor) {
+            // --- Draw Glow ---
+            ctx.beginPath();
+            ctx.strokeStyle = glowColor;
+            ctx.lineWidth = 10;
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = glowColor;
+            bolts.forEach(bolt => {
+                ctx.moveTo(bolt.x, bolt.y);
+                ctx.lineTo(bolt.x + Math.cos(bolt.angle) * bolt.length, bolt.y + Math.sin(bolt.angle) * bolt.length);
+            });
+            ctx.stroke();
+
+            // --- Draw Core Bolt (thicker now) ---
+            ctx.beginPath();
+            ctx.strokeStyle = coreColor;
+            ctx.lineWidth = 4; // Increased from 3
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = coreColor;
+            bolts.forEach(bolt => {
+                ctx.moveTo(bolt.x, bolt.y);
+                ctx.lineTo(bolt.x + Math.cos(bolt.angle) * bolt.length, bolt.y + Math.sin(bolt.angle) * bolt.length);
+            });
+            ctx.stroke();
+            
+            // --- Draw Inner Core (thicker and brighter) ---
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 1)'; // More opaque white
+            ctx.lineWidth = 2; // Increased from 1
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 10; // Increased shadow for a brighter bloom
+            ctx.shadowColor = 'white';
+            bolts.forEach(bolt => {
+                ctx.moveTo(bolt.x, bolt.y);
+                ctx.lineTo(bolt.x + Math.cos(bolt.angle) * bolt.length, bolt.y + Math.sin(bolt.angle) * bolt.length);
+            });
+            ctx.stroke();
+
+            // --- Screen Flash Effect ---
+            ctx.fillStyle = `rgba(138, 43, 226, 0.1)`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Reset shadow for next drawings
+            ctx.shadowBlur = 0;
+
+            // Fade out effect
+            setTimeout(() => {
+                fadeOut();
+            }, 100); // Start fading after a short delay
+        }
+        
+        /**
+         * Fades the canvas to black for a smooth transition.
+         */
+        function fadeOut() {
+            let alpha = 1.0;
+            const fadeInterval = setInterval(() => {
+                ctx.fillStyle = `rgba(3, 0, 20, 0.2)`; // Fade with the background color
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                alpha -= 0.1;
+                if (alpha <= 0) {
+                    clearInterval(fadeInterval);
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Fully clear at the end
+                }
+            }, 50);
+        }
+
+        // --- Event Listener ---
+        canvas.addEventListener('click', (e) => {
+            // Clear previous lightning before drawing a new one
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Get mouse coordinates relative to the canvas
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            createLightning(x, y);
+        });
+
+    </script>
+</body>
+</html>
