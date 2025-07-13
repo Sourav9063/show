@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Plasma Canvas</title>
+    <style>
+        /* Basic CSS reset and body styling */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            background-color: #030014; /* A very dark deep blue for the night sky */
+            cursor: none; /* Hide the default cursor */
+        }
+        /* Style for the canvas to make it fill the screen */
+        canvas {
+            display: block;
+        }
+        /* Style for a subtle instruction text */
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            pointer-events: none; /* Make sure text doesn't interfere with clicks */
+            text-shadow: 0 0 5px rgba(138, 43, 226, 0.5);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="instructions">Move your mouse to generate plasma</div>
+    <canvas id="plasmaCanvas"></canvas>
+
+    <script>
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('plasmaCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Mouse position variables
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+
+        // Array to hold all plasma particles
+        const particles = [];
+
+        // --- Canvas Sizing ---
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = resizeCanvas;
+
+        // --- Mouse Tracking ---
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        
+        // Prevent plasma from generating when mouse leaves the window
+        window.addEventListener('mouseout', () => {
+            mouseX = -100; // Move the source off-screen
+            mouseY = -100;
+        });
+
+
+        // --- Plasma Particle Logic ---
+
+        /**
+         * Represents a single particle of plasma.
+         */
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.prevX = x; // Store previous position for drawing lines
+                this.prevY = y;
+                // Random angle in any direction (0 to 2*PI)
+                this.angle = Math.random() * Math.PI * 2;
+                // Random speed
+                this.speed = Math.random() * 4 + 1;
+                // Lifespan in frames
+                this.life = Math.random() * 50 + 20;
+                this.color = this.getRandomColor();
+            }
+
+            /**
+             * Generates a random color in the desired HSL range.
+             * Hues: 240-300 (blue to violet), 300-360 (pink to red)
+             */
+            getRandomColor() {
+                // Pick a hue range: either blues/violets or pinks/reds
+                const hueRange = Math.random() > 0.5 ? 
+                    Math.random() * 60 + 240 : // Blue/Violet range
+                    Math.random() * 60 + 300;  // Pink/Red range
+                return `hsl(${hueRange}, 100%, 70%)`;
+            }
+
+            /**
+             * Updates the particle's position and decreases its lifespan.
+             */
+            update() {
+                this.prevX = this.x;
+                this.prevY = this.y;
+                // Move the particle
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                // Decrease life
+                this.life--;
+            }
+
+            /**
+             * Draws the particle as a 1px line from its previous to current position.
+             */
+            draw() {
+                ctx.beginPath();
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 1;
+                ctx.moveTo(this.prevX, this.prevY);
+                ctx.lineTo(this.x, this.y);
+                ctx.stroke();
+            }
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            // Create a fading effect by drawing a semi-transparent background
+            ctx.fillStyle = 'rgba(3, 0, 20, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Create new particles at the mouse position
+            // The number of particles created per frame determines density
+            for (let i = 0; i < 5; i++) {
+                if(mouseX > 0) { // Only create if mouse is on screen
+                   particles.push(new Particle(mouseX, mouseY));
+                }
+            }
+
+            // Update and draw all particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.update();
+                p.draw();
+
+                // Remove particles whose lifespan has ended
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+            
+            // Request the next frame
+            requestAnimationFrame(animate);
+        }
+
+        // Start the animation
+        animate();
+
+    </script>
+</body>
+</html>
